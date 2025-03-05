@@ -1,0 +1,159 @@
+#Adam Che Nazahatuhisamudin
+
+#Data loading and initialization
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+# Load the dataset
+file_path = 'Air_Quality_Changes_in_The_US.csv'
+air_quality_data = pd.read_csv(file_path)
+
+# Display the first few rows for inspection
+print(air_quality_data.head())
+
+#data Cleaning and processing
+
+air_quality_data['Core Based Statistical Area'] = air_quality_data.groupby('CBSA')['Core Based Statistical Area'].ffill()
+
+print(air_quality_data.head(15))
+
+# Handling missing values and converting to numeric
+air_quality_data.iloc[:, 5:] = air_quality_data.iloc[:, 5:].apply(pd.to_numeric, errors='coerce')
+air_quality_data = air_quality_data.dropna(subset=['1990', '1991', '1992', '1993', '1994', '1995', '1996', '1997', '1998', '1999',
+ '2000', '2001', '2002', '2003', '2004', '2005', '2006', '2007', '2008', '2009',
+ '2010', '2011', '2012', '2013', '2014', '2015', '2016', '2017', '2018', '2019',
+ '2020', '2021', '2022'], how='any')
+
+print(air_quality_data.head(825))
+
+air_quality_data.info()
+
+def plot_pollutant_trend(data, pollutant):
+    """
+    Plot the trend of a given pollutant over the years.
+    """
+    
+    pollutant_data = data[data['Pollutant'] == pollutant]
+    yearly_mean = pollutant_data.iloc[:, 5:].mean()  # Assuming columns 5 onward are yearly data
+
+    # Remove NaN values from the yearly mean
+    yearly_mean = yearly_mean.dropna()
+
+    if len(yearly_mean) == 0:
+        print(f"No data available for {pollutant}. Skipping...")
+        return
+        
+    years = np.array([int(year) for year in yearly_mean.index]).reshape(-1, 1)  # Convert index to integer years
+    values = yearly_mean.values.reshape(-1, 1)
+    
+    # Perform linear regression
+    model = LinearRegression()
+    model.fit(years, values)
+    trend_line = model.predict(years)
+    
+    # Plot the scatter plot and regression line
+    plt.figure(figsize=(15, 7))
+    plt.scatter(yearly_mean.index, yearly_mean.values, color='blue', label=f'{pollutant} Levels (Data Points)')
+    plt.plot(yearly_mean.index, trend_line, color='red', label='Regression Line', linestyle='--')
+    plt.title(f'Trend of {pollutant} Levels in the US (1990-2022)', fontsize=16)
+    plt.xlabel('Year', fontsize=12)
+    plt.ylabel(f'Annual Mean {pollutant} Level', fontsize=12)
+    plt.xticks(rotation=45, fontsize=10)
+    plt.yticks(fontsize=10)
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.legend(fontsize=12)
+    plt.tight_layout()
+    
+    plt.show()
+    
+
+    
+
+    plt.figure(figsize=(15, 7))
+    sns.lineplot(x=yearly_mean.index, y=yearly_mean.values)
+    plt.title(f'Trend of {pollutant} Levels in the US (1990-2022)')
+    plt.xlabel('Year')
+    plt.ylabel(f'Annual Mean of {pollutant} Level')
+    plt.xticks(rotation=45)
+    plt.grid(True)
+    
+    plt.show()
+    
+    
+    
+
+
+# Plotting trends for each pollutant
+plot_pollutant_trend(air_quality_data, 'PM2.5')
+plot_pollutant_trend(air_quality_data, 'SO2')
+plot_pollutant_trend(air_quality_data, 'O3')
+
+pm25_data = air_quality_data[air_quality_data['Pollutant'] == 'PM2.5']
+print(pm25_data.iloc[:, 5:].head())  # Display the yearly data for PM2.5
+print(pm25_data.iloc[:, 5:].isnull().sum())
+
+#Spatial analysis of PM2.5 in past year(2022) across cities in the United States
+def spatial_comparison(data, pollutant, year):
+    """
+    Compare the levels of a given pollutant across different CBSAs for a specific year.
+    """
+    spatial_data = data[data['Pollutant'] == pollutant][['CBSA', 'Core Based Statistical Area', year]]
+    spatial_data.dropna(subset=[year], inplace=True)  # Dropping rows where the year's data is missing
+
+    plt.figure(figsize=(15, 10))
+    sns.barplot(x=year, y='Core Based Statistical Area', data=spatial_data.sort_values(by=year, ascending=False))
+    plt.title(f'{pollutant} Levels Across Different CBSAs in {year}')
+    plt.xlabel(f'{pollutant} Level')
+    plt.ylabel('CBSA')
+    plt.show()
+    
+
+# Spatial comparison for pollutants in the most recent year
+spatial_comparison(air_quality_data, 'O3', '2022')
+spatial_comparison(air_quality_data, 'SO2', '2022')
+
+
+#Predictive Modelling for future trends using Machine learning model: Train_test_Split method
+# Model takes random numbers from year for training, it takes 
+# Focusing on SO2 for predictive modeling
+p_data = air_quality_data[air_quality_data['Pollutant'] == 'SO2'].iloc[:, 5:].mean()
+p_data_cleaned = p_data.dropna()
+
+# Preparing the data
+years_cleaned = np.array(p_data_cleaned.index).reshape(-1, 1)
+p_levels_cleaned = p_data_cleaned.values
+
+# Train-test split
+X_train_cleaned, X_test_cleaned, y_train_cleaned, y_test_cleaned = train_test_split(years_cleaned, p_levels_cleaned, test_size=0.2, random_state=42)
+
+# Linear regression model
+model_cleaned = LinearRegression()
+model_cleaned.fit(X_train_cleaned, y_train_cleaned)
+
+# Prediction
+y_pred_cleaned = model_cleaned.predict(X_test_cleaned)
+
+# Model evaluation
+mae_cleaned = mean_absolute_error(y_test_cleaned, y_pred_cleaned)
+mse_cleaned = mean_squared_error(y_test_cleaned, y_pred_cleaned)
+r2_cleaned = r2_score(y_test_cleaned, y_pred_cleaned)
+
+# Visualization of the model's performance
+plt.figure(figsize=(12, 6))
+plt.scatter(X_train_cleaned.flatten(), y_train_cleaned, color='blue', label='Training Data')
+plt.scatter(X_test_cleaned.flatten(), y_test_cleaned, color='red', label='Testing Data')
+plt.plot(X_test_cleaned.flatten(), y_pred_cleaned, color='green', label='Prediction')
+plt.title('SO2 Levels Prediction using Linear Regression')
+plt.xlabel('Year')
+plt.ylabel('SO2 Levels')
+plt.legend()
+plt.show()
+
+print("MAE:", mae_cleaned)
+print("MSE:", mse_cleaned)
+print("R-squared:", r2_cleaned)
